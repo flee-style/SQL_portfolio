@@ -1,5 +1,6 @@
-filename IN 'C:\Users\user\Google ドライブ\フリーランス\portfolio\SQL\Tweet.csv';
-data Tweet;
-	infile IN dlm=',' missover encoding=any;
-	input tweet_id $ writer $30. post_date body $500. comment_num retweet_num like_num;
+/* 取得したデータを加工 */
+data WORK.TWEET;
+	set WORK.TWEET;
+	/* F8などの変数チェック */
+	where F8 is null;
 run;
