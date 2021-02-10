@@ -24,3 +24,12 @@ SAS EGでcsvファイル取り込み
 ・F8などに値あり→クレンジング,1927件を削除。
 ・bodyの文字数をカウントし変数作成
 →再度csvファイルにエクスポート
+
+2/10
+パソコンのSSD容量不足→Herokuを用いて仮想DBを使用してみる.
+・デプロイ開始
+https://tweetanalyze777.herokuapp.com/ | https://git.heroku.com/tweetanalyze777.git
+・herokuではruby,pythonなどwebアプリケーションなどしか動かない
+→pythonでビルドし、コード内にSQLを書いていく方法を試してみる。
+https://techacademy.jp/magazine/26403
+pythonでもう一回デプロイ
