@@ -33,3 +33,6 @@ https://tweetanalyze777.herokuapp.com/ | https://git.heroku.com/tweetanalyze777.
 →pythonでビルドし、コード内にSQLを書いていく方法を試してみる。
 https://techacademy.jp/magazine/26403
 pythonでもう一回デプロイ
+
+2/13 
+Tweetデータの件数300万件、Company_Tweetデータの件数400万件

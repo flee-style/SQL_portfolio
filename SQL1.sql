@@ -8,71 +8,60 @@
     count_bodytext SMALLINT,
     comment_num VARCHAR(100),
     retweet_num VARCHAR(100),
-    like_num VARCHAR(100)
-  );
+    like_num VARCHAR(100));
   COPY Tweet FROM 'C:\ProgramData\SampleData\Tweet2.csv' WITH csv;
-
-  -- Company Data
+   -- Company Data
   DROP TABLE IF EXISTS Company;
   CREATE TABLE Company(
     ticker_symbol VARCHAR(20),
     company_name  VARCHAR(20)
-  );
-  COPY Company FROM 'C:\ProgramData\SampleData\Company.csv' WITH csv HEADER;
-
+  );COPY Company FROM 'C:\ProgramData\SampleData\Company.csv' WITH csv HEADER;
   -- Company_Tweet Data
   DROP TABLE IF EXISTS Company_Tweet;
   CREATE TABLE Company_Tweet(
     tweet_id BIGINT,
     ticker_symbol VARCHAR(20)
-  );
-  COPY Company_Tweet FROM 'C:\ProgramData\SampleData\Company_Tweet.csv' WITH csv HEADER;
-
--- select *
--- from Company_Tweet
--- limit 100;
-
+  );COPY Company_Tweet FROM 'C:\ProgramData\SampleData\Company_Tweet.csv' WITH csv HEADER;
   -- CompanyValues Data
   --   2010-06-01からデータが存在している。
   DROP TABLE IF EXISTS Company_Values;
   CREATE TABLE Company_Values(
     ticker_symbol VARCHAR(20),
-    day_date VARCHAR(10),
+    tweet_date VARCHAR(10),
     close_value REAL,
     volume INTEGER,
     open_value REAL,
     high_value REAL,
     low_value REAL
-  );
-  COPY Company_Values FROM 'C:\ProgramData\SampleData\CompanyValues.csv' WITH csv HEADER;
+  );COPY Company_Values FROM 'C:\ProgramData\SampleData\CompanyValues.csv' WITH csv HEADER; 
+  -- 会社の株価を2015年から2020年に絞る
+  DROP TABLE IF EXISTS Company_Values1;
+  CREATE TABLE Company_Values1 AS  
+  SELECT *
+  FROM  Company_Values
+  WHERE '2015-01-01' <= tweet_date AND tweet_date <= '2020-12-31'
+  ;
 
--- ツイート年月日、2010～2020の範囲なのか?
--- SELECT *
--- FROM Company_Values
--- ORDER BY day_date
--- limit 100;
+-- 2.検証用データ作成
+  -- 検証用2015年ツイートデータ   
+  DROP TABLE IF EXISTS Tweet_2015;
+  CREATE TABLE Tweet_2015 AS 
+    SELECT tweet_id,post_date,count_bodytext,
+            COALESCE(comment_num,'0') AS comment_num ,
+            COALESCE(retweet_num,'0') AS retweet_num ,
+            COALESCE(like_num,'0')    AS like_num,
+            TO_TIMESTAMP(post_date)::date AS tweet_date
+    FROM TWEET
+    WHERE  TO_TIMESTAMP(post_date)::date < '2016-01-01'
+  ;
 
--- 2.ツイートデータと会社名データを結合,EPOCH時間を変換
+-- 3.データ加工
 DROP TABLE IF EXISTS Tweetdata01;
 CREATE TABLE Tweetdata01 AS
-SELECT C.tweet_id,
-      ticker_symbol AS Company_symbol,
-      day_date
-      index_startdate, 
-      index_enddate, 
-      count_bodytext AS body_cnt, 
-      text_cat AS body_cat,
-      comment_num,
-      retweet_num, 
-      like_num, 
-      close_value
-FROM(--Tweet,Company_Tweetデータのマージ
-      SELECT tweet_id,
+--Tweet,Company_Tweetデータのマージ
+  SELECT tweet_id,
           ticker_symbol,
-          post_date,
-          TO_TIMESTAMP(post_date)::date as day_date,
-          MIN(post_date) OVER(PARTITION BY ticker_symbol) AS index_startdate,
-          MAX(post_date) OVER(PARTITION BY ticker_symbol) AS index_enddate,
+          tweet_date,
           count_bodytext,
           CASE  WHEN count_bodytext < 50 THEN 1
           WHEN count_bodytext < 100 THEN 2
@@ -84,11 +73,28 @@ FROM(--Tweet,Company_Tweetデータのマージ
           comment_num,
           retweet_num,
           like_num
-      FROM (SELECT * FROM Tweet LIMIT 100000) AS A
-        INNER JOIN (SELECT * FROM Company_Tweet LIMIT 100000) AS B USING(tweet_id)) AS C
-  INNER JOIN (--Company_Valuesデータのマージ 
-              SELECT ticker_symbol, day_date::date AS day_date, close_value FROM Company_Values LIMIT 10000) AS D
-          USING(ticker_symbol,day_date);
+  FROM Tweet_2015
+    INNER JOIN Company_Tweet USING(tweet_id)
+    ;
+
+-- index_date作成
+DROP TABLE IF EXISTS Tweetdata02;
+CREATE TABLE Tweetdata02 AS  
+  SELECT ticker_symbol AS Company_symbol,
+        MIN(tweet_date) AS index_startdate,
+        MAX(tweet_date) AS index_enddate
+  FROM Tweetdata01
+  GROUP BY 1
+  ;
+  
+-- 継続判定フラグ作成
+
+-- 毎日ツイートフラグ判定
+
+  
+    INNER JOIN (--Company_Valuesデータのマージ 
+                SELECT ticker_symbol, day_date::date AS day_date, close_value FROM Company_Values1 LIMIT 10000) AS D
+            USING(ticker_symbol,day_date);
           
 SELECT *
 FROM Tweetdata01
