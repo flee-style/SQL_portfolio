@@ -35,4 +35,8 @@ https://techacademy.jp/magazine/26403
 pythonでもう一回デプロイ
 
 2/13 
-Tweetデータの件数300万件、Company_Tweetデータの件数400万件
+Tweetデータの件数300万件、Company_Tweetデータの件数400万件、
+△内部結合にかなり時間がかかってしまう。
+→すべてのデータを含めるのは困難。
+	→TweetデータとCompany_Tweetを結合→データ１の集計　→ 企業とツイート数
+	→

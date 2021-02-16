@@ -1,6 +1,6 @@
 -- 1. CSVインポート
   -- Tweet Data
-  DROP TABLE IF EXISTS TWEET;
+  DROP TABLE IF EXISTS Tweet;
   CREATE TABLE Tweet(
     tweet_id BIGINT,
     writer VARCHAR(30),
@@ -76,6 +76,26 @@ CREATE TABLE Tweetdata01 AS
   FROM Tweet_2015
     INNER JOIN Company_Tweet USING(tweet_id)
     ;
+    
+-- 帳票作成
+SELECT ticker_symbol,
+      COUNT(tweet_id) AS tweet_count,
+      AVG(count_bodytext) AS text_mean,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY count_bodytext),
+      --,
+      SUM(comment_num::int) AS comment_count,
+      AVG(comment_num::int) AS comment_mean,
+      MAX(comment_num::int) AS comment_max,
+      SUM(retweet_num::int) AS retweet_count,
+      AVG(retweet_num::int) AS retweet_mean,
+      MAX(retweet_num::int) AS retweet_max,
+      SUM(like_num::int) AS like_count,
+      AVG(like_num::int) AS like_mean,
+      MAX(like_num::int) AS like_max
+FROM Tweetdata01
+GROUP BY ticker_symbol
+;
+
 
 -- index_date作成
 DROP TABLE IF EXISTS Tweetdata02;
@@ -86,6 +106,11 @@ CREATE TABLE Tweetdata02 AS
   FROM Tweetdata01
   GROUP BY 1
   ;
+  
+SELECT *
+FROM Tweetdata01
+LIMIT 100
+;
   
 -- 継続判定フラグ作成
 
