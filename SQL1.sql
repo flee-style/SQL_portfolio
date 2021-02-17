@@ -37,9 +37,12 @@
   -- 会社の株価を2015年から2020年に絞る
   DROP TABLE IF EXISTS Company_Values1;
   CREATE TABLE Company_Values1 AS  
-  SELECT *
+  SELECT ticker_symbol
+        ,tweet_date::date
+        ,close_value
   FROM  Company_Values
   WHERE '2015-01-01' <= tweet_date AND tweet_date <= '2020-12-31'
+--   limit 100
   ;
 
 -- 2.検証用データ作成
@@ -54,6 +57,11 @@
     FROM TWEET
     WHERE  TO_TIMESTAMP(post_date)::date < '2016-01-01'
   ;
+  
+SELECT *
+FROM Tweet_2015
+LIMIT 100
+;
 
 -- 3.データ加工
 DROP TABLE IF EXISTS Tweetdata01;
@@ -61,7 +69,7 @@ CREATE TABLE Tweetdata01 AS
 --Tweet,Company_Tweetデータのマージ
   SELECT tweet_id,
           ticker_symbol,
-          tweet_date,
+          tweet_date::date AS tweet_date,
           count_bodytext,
           CASE  WHEN count_bodytext < 50 THEN 1
           WHEN count_bodytext < 100 THEN 2
@@ -77,25 +85,33 @@ CREATE TABLE Tweetdata01 AS
     INNER JOIN Company_Tweet USING(tweet_id)
     ;
     
+-- 数値以外の値
+DROP TABLE IF EXISTS Tweetdata01_1;
+CREATE TABLE Tweetdata01_1 AS
+  SELECT *
+  FROM 
+  ;
+
+    
 -- 帳票作成
+DROP TABLE IF EXISTS Tweetdata02 ;
+CREATE TABLE Tweetdata02 AS
 SELECT ticker_symbol,
       COUNT(tweet_id) AS tweet_count,
-      AVG(count_bodytext) AS text_mean,
+      AVG(CAST(count_bodytext AS int)) AS text_mean,
       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY count_bodytext),
-      --,
-      SUM(comment_num::int) AS comment_count,
-      AVG(comment_num::int) AS comment_mean,
-      MAX(comment_num::int) AS comment_max,
-      SUM(retweet_num::int) AS retweet_count,
-      AVG(retweet_num::int) AS retweet_mean,
-      MAX(retweet_num::int) AS retweet_max,
-      SUM(like_num::int) AS like_count,
-      AVG(like_num::int) AS like_mean,
-      MAX(like_num::int) AS like_max
-FROM Tweetdata01
+      SUM(CAST(comment_num AS int)) AS comment_count,
+      AVG(CAST(comment_num AS int)) AS comment_mean,
+      MAX(CAST(comment_num AS int)) AS comment_max,
+      SUM(CAST(retweet_num AS int)) AS retweet_count,
+      AVG(CAST(retweet_num AS int)) AS retweet_mean,
+      MAX(CAST(retweet_num AS int)) AS retweet_max,
+      SUM(CAST(like_num AS int)) AS like_count,
+      AVG(CAST(like_num AS int)) AS like_mean,
+      MAX(CAST(like_num AS int)) AS like_max
+FROM Tweetdata01_1 AS A
 GROUP BY ticker_symbol
 ;
-
 
 -- index_date作成
 DROP TABLE IF EXISTS Tweetdata02;
@@ -108,9 +124,23 @@ CREATE TABLE Tweetdata02 AS
   ;
   
 SELECT *
-FROM Tweetdata01
+FROM Company_Values
 LIMIT 100
 ;
+
+-- 検証用2015年会社の株価データ
+DROP TABLE IF EXISTS Company_Values1;
+CREATE TABLE Company_Values1 AS  
+  SELECT *
+  FROM   Company_Values
+  WHERE  tweet_date < '2016-01-01'
+--   GROUP BY tweet_date
+  ;
+
+SELECT *
+FROM Tweetdata01
+INNER JOIN Company_Values1 USING(ticker_symbol,tweet_date)
+LIMIT 100;
   
 -- 継続判定フラグ作成
 
