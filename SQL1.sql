@@ -58,10 +58,10 @@
     WHERE  TO_TIMESTAMP(post_date)::date < '2016-01-01'
   ;
   
-SELECT *
-FROM Tweet_2015
-LIMIT 100
-;
+-- SELECT *
+-- FROM Tweet_2015
+-- LIMIT 100
+-- ;
 
 -- 3.データ加工
 DROP TABLE IF EXISTS Tweetdata01;
@@ -137,10 +137,10 @@ CREATE TABLE Company_Values1 AS
 --   GROUP BY tweet_date
   ;
 
-SELECT *
-FROM Tweetdata01
-INNER JOIN Company_Values1 USING(ticker_symbol,tweet_date)
-LIMIT 100;
+-- SELECT *
+-- FROM Tweetdata01
+-- INNER JOIN Company_Values1 USING(ticker_symbol,tweet_date)
+-- LIMIT 100;
   
 -- 継続判定フラグ作成
 
