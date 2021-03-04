@@ -44,18 +44,22 @@ CREATE TABLE Tweetdata01 AS
           ticker_symbol,
           tweet_date::date AS tweet_date,
           count_bodytext,
-          CASE  WHEN count_bodytext < 50 THEN 1
-          WHEN count_bodytext < 100 THEN 2
-          WHEN count_bodytext < 150 THEN 3
-          WHEN count_bodytext < 200 THEN 4
-          WHEN count_bodytext < 250 THEN 5
-          WHEN count_bodytext < 300 THEN 6
-          ELSE 0 END AS text_cat,
-          CASE WHEN comment_num IS NULL THEN '0' ELSE comment_num END AS comment_num,
+--           CASE  WHEN count_bodytext < 50 THEN 1
+--           WHEN count_bodytext < 100 THEN 2
+--           WHEN count_bodytext < 150 THEN 3
+--           WHEN count_bodytext < 200 THEN 4
+--           WHEN count_bodytext < 250 THEN 5
+--           WHEN count_bodytext < 300 THEN 6
+--           ELSE 0 END AS text_cat,
+          RIGHT(RIGHT(comment_num,1),1),
+          CASE WHEN comment_num          IS NULL THEN '0'
+               WHEN RIGHT(comment_num,1) = '"' AND LEFT(comment_num,1) = '7' THEN LEFT(comment_num,3)
+               ELSE                                   comment_num        END AS comment_num,
           CASE WHEN retweet_num IS NULL THEN '0' ELSE retweet_num END AS retweet_num,
           CASE WHEN like_num IS NULL THEN '0' ELSE like_num END AS like_num                 
   FROM Tweet_2015
     INNER JOIN Company_Tweet1 USING(tweet_id)
+--   WHERE tweet_id = 635902108449959936
     ;
     
 CREATE OR REPLACE FUNCTION isnumeric(c_num character varying)
@@ -78,13 +82,80 @@ $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 100;
     
--- 数値以外の値をcomment_numなどの変数から削除
+-- comment_num,retweet_num,like_numの数値のみのデータを残す
 DROP TABLE IF EXISTS Tweetdata01_1;
 CREATE TABLE Tweetdata01_1 AS
-
- = true
+  SELECT tweet_id
+         ,ticker_symbol
+         ,tweet_date
+         ,count_bodytext
+         ,comment_num
+         ,retweet_num
+         ,like_num 
+  FROM Tweetdata01
+  GROUP BY 1,2,3,4,5,6,7
+  HAVING  COUNT(CASE WHEN isnumeric(comment_num) AND isnumeric(retweet_num) AND isnumeric(like_num) THEN NULL
+                ELSE 1 END) <> 1
   ;
   
+-- 帳票用データのためのツイートデータ作成
+DROP TABLE IF EXISTS Tweetdata01_2;
+CREATE TABLE Tweetdata01_2 AS
+  SELECT ticker_symbol
+         , tweet_date
+         , COUNT(tweet_id)       AS tweet_num
+         , SUM(count_bodytext)   AS tweet_text_sum
+         , SUM(comment_num::int) AS tweet_comment_sum
+         , MAX(comment_num::int) AS tweet_comment_max
+         , SUM(retweet_num::int) AS tweet_retweet_sum
+         , MAX(retweet_num::int) AS tweet_retweet_max
+         , SUM(like_num::int)    AS tweet_like_sum
+         , MAX(like_num::int)    AS tweet_like_max
+  FROM Tweetdata01_1
+  GROUP BY ticker_symbol, tweet_date
+  ;
+  
+-- CompanyValues Data
+--   2010-06-01からデータが存在している。
+DROP TABLE IF EXISTS Company_Values;
+CREATE TABLE Company_Values(
+    ticker_symbol VARCHAR(20),
+    tweet_date VARCHAR(10),
+    close_value REAL,
+    volume INTEGER,
+    open_value REAL,
+    high_value REAL,
+    low_value REAL
+);COPY Company_Values FROM 'C:\ProgramData\SampleData\CompanyValues.csv' WITH csv HEADER; 
+
+-- 会社の株価を2015年から2020年に絞る
+DROP TABLE IF EXISTS Company_Values1;
+CREATE TABLE Company_Values1 AS  
+  SELECT CASE WHEN ticker_symbol = 'GOOG' THEN 'GOOGL' ELSE ticker_symbol END AS ticker_symbol
+        ,tweet_date::date
+        ,close_value
+  FROM  Company_Values
+  WHERE '2015-01-01' <= tweet_date AND tweet_date <= '2020-12-31'
+  ;
+
+-- 検証用2015年会社の株価データ
+DROP TABLE IF EXISTS Company_Values2;
+CREATE TABLE Company_Values2 AS  
+  SELECT *
+  FROM   Company_Values1
+  WHERE  tweet_date < '2016-01-01'
+  ;
+  
+-- GOOGLEの
+
+-- 株価データと結合
+DROP TABLE IF EXISTS Tweetdata01_3;
+CREATE TABLE Tweetdata01_3 AS
+  SELECT T1.*
+        ,T2.close_value AS Company_value
+  FROM Tweetdata01_2 AS T1 FULL OUTER JOIN Company_Values2 AS T2
+    ON T1.ticker_symbol = T2.ticker_symbol AND T1.tweet_date = T2.tweet_date 
+;
 -- 帳票作成
 DROP TABLE IF EXISTS Tweetdata02 ;
 CREATE TABLE Tweetdata02 AS
@@ -117,50 +188,4 @@ limit 100;
     company_name  VARCHAR(20)
   );COPY Company FROM 'C:\ProgramData\SampleData\Company.csv' WITH csv HEADER;
 
-  -- CompanyValues Data
-  --   2010-06-01からデータが存在している。
-  DROP TABLE IF EXISTS Company_Values;
-  CREATE TABLE Company_Values(
-    ticker_symbol VARCHAR(20),
-    tweet_date VARCHAR(10),
-    close_value REAL,
-    volume INTEGER,
-    open_value REAL,
-    high_value REAL,
-    low_value REAL
-  );COPY Company_Values FROM 'C:\ProgramData\SampleData\CompanyValues.csv' WITH csv HEADER; 
-  -- 会社の株価を2015年から2020年に絞る
-  DROP TABLE IF EXISTS Company_Values1;
-  CREATE TABLE Company_Values1 AS  
-  SELECT ticker_symbol
-        ,tweet_date::date
-        ,close_value
-  FROM  Company_Values
-  WHERE '2015-01-01' <= tweet_date AND tweet_date <= '2020-12-31'
---   limit 100
-  ;
 
-    
-
-
-    
-
-
--- index_date作成
-DROP TABLE IF EXISTS Tweetdata02;
-CREATE TABLE Tweetdata02 AS  
-  SELECT ticker_symbol AS Company_symbol,
-        MIN(tweet_date) AS index_startdate,
-        MAX(tweet_date) AS index_enddate
-  FROM Tweetdata01
-  GROUP BY 1
-  ;
-
--- 検証用2015年会社の株価データ
-DROP TABLE IF EXISTS Company_Values2;
-CREATE TABLE Company_Values1 AS  
-  SELECT *
-  FROM   Company_Values1
-  WHERE  tweet_date < '2016-01-01'
---   GROUP BY tweet_date
-  ;
