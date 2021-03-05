@@ -145,8 +145,6 @@ CREATE TABLE Company_Values2 AS
   FROM   Company_Values1
   WHERE  tweet_date < '2016-01-01'
   ;
-  
--- GOOGLEの
 
 -- 株価データと結合
 DROP TABLE IF EXISTS Tweetdata01_3;
@@ -156,36 +154,89 @@ CREATE TABLE Tweetdata01_3 AS
   FROM Tweetdata01_2 AS T1 FULL OUTER JOIN Company_Values2 AS T2
     ON T1.ticker_symbol = T2.ticker_symbol AND T1.tweet_date = T2.tweet_date 
 ;
--- 帳票作成
+
+-- 日付にて終値の変化を作成
+DROP TABLE IF EXISTS Tweetdata01_4;
+CREATE TABLE Tweetdata01_4 AS
+  SELECT T1.*
+        ,CASE WHEN T1.company_value = T2.company_value THEN '→'
+              WHEN T1.company_value < T2.company_value THEN '↑'
+              WHEN T1.company_value > T2.company_value THEN '↓' 
+              ELSE NULL END AS Company_variation
+  FROM Tweetdata01_3 T1, Tweetdata01_3 T2
+  WHERE T1.ticker_symbol = T2.ticker_symbol
+    AND T1.tweet_date + 1 = T2.tweet_date
+    ;
+    
+ -- Company Data
+DROP TABLE IF EXISTS Company;
+CREATE TABLE Company(
+  ticker_symbol VARCHAR(20),
+  company_name  VARCHAR(20)
+);COPY Company FROM 'C:\ProgramData\SampleData\Company.csv' WITH csv HEADER;
+
+SELECT *
+FROM Company
+;
+
+DROP TABLE IF EXISTS Tweetdata01_5;
+CREATE TABLE Tweetdata01_5 AS
+  SELECT T2.company_name
+        ,tweet_date
+        ,tweet_num
+        ,tweet_text_sum
+        ,tweet_comment_sum
+        ,tweet_comment_max
+        ,tweet_retweet_sum
+        ,tweet_retweet_max
+        ,tweet_like_sum
+        ,tweet_like_max
+        ,company_value
+        ,company_variation
+  FROM Tweetdata01_4 T1
+    INNER JOIN Company T2 ON T1.ticker_symbol = T2.ticker_symbol 
+;
+
+-- 帳票1作成
 DROP TABLE IF EXISTS Tweetdata02 ;
 CREATE TABLE Tweetdata02 AS
-SELECT ticker_symbol,
-      COUNT(tweet_id) AS tweet_count,
-      AVG(CAST(count_bodytext AS int)) AS text_mean,
-      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY count_bodytext),
-      SUM(CAST(comment_num AS int)) AS comment_count,
-      AVG(CAST(comment_num AS int)) AS comment_mean,
-      MAX(CAST(comment_num AS int)) AS comment_max,
-      SUM(CAST(retweet_num AS int)) AS retweet_count,
-      AVG(CAST(retweet_num AS int)) AS retweet_mean,
-      MAX(CAST(retweet_num AS int)) AS retweet_max,
-      SUM(CAST(like_num AS int)) AS like_count,
-      AVG(CAST(like_num AS int)) AS like_mean,
-      MAX(CAST(like_num AS int)) AS like_max
-FROM Tweetdata01_1
-GROUP BY ticker_symbol
-limit 100
-;
-    
-SELECT *
-fROM Tweetdata01
-limit 100;
-
-   -- Company Data
-  DROP TABLE IF EXISTS Company;
-  CREATE TABLE Company(
-    ticker_symbol VARCHAR(20),
-    company_name  VARCHAR(20)
-  );COPY Company FROM 'C:\ProgramData\SampleData\Company.csv' WITH csv HEADER;
-
-
+  SELECT ticker_symbol,
+        SUM(tweet_num)              AS tweet_count,
+        SUM(tweet_text_sum)         AS text_sum,
+        SUM(tweet_text_sum) / SUM(tweet_num)      AS text_mean,
+        SUM(tweet_comment_sum)      AS comment_count,
+        SUM(tweet_comment_sum) / SUM(tweet_num) AS comment_mean,
+        MAX(tweet_comment_max)      AS comment_max,
+        SUM(tweet_retweet_sum)      AS retweet_count,
+        SUM(tweet_retweet_sum) / SUM(tweet_num) AS retweet_mean,
+        MAX(tweet_retweet_max)      AS retweet_max,
+        SUM(tweet_like_sum)         AS like_count,
+        SUM(tweet_like_sum) / SUM(tweet_num)    AS like_mean,
+        MAX(tweet_like_max)         AS like_max
+  FROM Tweetdata01_4
+  GROUP BY ticker_symbol
+  ;
+  
+-- 帳票2作成
+DROP TABLE IF EXISTS Tweetdata02 ;
+CREATE TABLE Tweetdata02 AS
+  SELECT ticker_symbol,
+          Company_variation,
+        SUM(tweet_num)              AS tweet_count,
+        SUM(tweet_text_sum)         AS text_sum,
+        SUM(tweet_text_sum) / SUM(tweet_num)      AS text_mean,
+        SUM(tweet_comment_sum)      AS comment_count,
+        SUM(tweet_comment_sum) / SUM(tweet_num) AS comment_mean,
+        MAX(tweet_comment_max)      AS comment_max,
+        SUM(tweet_retweet_sum)      AS retweet_count,
+        SUM(tweet_retweet_sum) / SUM(tweet_num) AS retweet_mean,
+        MAX(tweet_retweet_max)      AS retweet_max,
+        SUM(tweet_like_sum)         AS like_count,
+        SUM(tweet_like_sum) / SUM(tweet_num)    AS like_mean,
+        MAX(tweet_like_max)         AS like_max
+  FROM Tweetdata01_4
+  GROUP BY ticker_symbol,Company_variation
+  ORDER BY 1,2
+  ;
+  
+commit;
