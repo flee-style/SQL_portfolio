@@ -10,15 +10,15 @@ CREATE TABLE Tweet(
   COPY Tweet FROM 'C:\ProgramData\SampleData\Tweet2.csv' WITH csv;
   
 -- 検証用2015年ツイートデータ   
-DROP TABLE IF EXISTS Tweet_2015;
-CREATE TABLE Tweet_2015 AS 
+DROP TABLE IF EXISTS Tweet1;
+CREATE TABLE Tweet1 AS 
   SELECT tweet_id,post_date,count_bodytext,
           COALESCE(comment_num,'0') AS comment_num ,
           COALESCE(retweet_num,'0') AS retweet_num ,
           COALESCE(like_num,'0')    AS like_num,
           TO_TIMESTAMP(post_date)::date AS tweet_date
   FROM TWEET
-  WHERE  TO_TIMESTAMP(post_date)::date < '2016-01-01'
+--   WHERE  TO_TIMESTAMP(post_date)::date < '2016-01-01'
 ;
 
 -- Company_Tweet Data
@@ -57,7 +57,7 @@ CREATE TABLE Tweetdata01 AS
                ELSE                                   comment_num        END AS comment_num,
           CASE WHEN retweet_num IS NULL THEN '0' ELSE retweet_num END AS retweet_num,
           CASE WHEN like_num IS NULL THEN '0' ELSE like_num END AS like_num                 
-  FROM Tweet_2015
+  FROM Tweet1
     INNER JOIN Company_Tweet1 USING(tweet_id)
 --   WHERE tweet_id = 635902108449959936
     ;
@@ -103,6 +103,7 @@ DROP TABLE IF EXISTS Tweetdata01_2;
 CREATE TABLE Tweetdata01_2 AS
   SELECT ticker_symbol
          , tweet_date
+         , 
          , COUNT(tweet_id)       AS tweet_num
          , SUM(count_bodytext)   AS tweet_text_sum
          , SUM(comment_num::int) AS tweet_comment_sum
@@ -112,6 +113,7 @@ CREATE TABLE Tweetdata01_2 AS
          , SUM(like_num::int)    AS tweet_like_sum
          , MAX(like_num::int)    AS tweet_like_max
   FROM Tweetdata01_1
+  WHERE tweet_date <= '2020-05-29'
   GROUP BY ticker_symbol, tweet_date
   ;
   
@@ -135,15 +137,14 @@ CREATE TABLE Company_Values1 AS
         ,tweet_date::date
         ,close_value
   FROM  Company_Values
-  WHERE '2015-01-01' <= tweet_date AND tweet_date <= '2020-12-31'
+  WHERE '2015-01-01' <= tweet_date AND tweet_date <= '2021-01-01'
   ;
 
--- 検証用2015年会社の株価データ
+-- 会社の株価データ
 DROP TABLE IF EXISTS Company_Values2;
 CREATE TABLE Company_Values2 AS  
   SELECT *
   FROM   Company_Values1
-  WHERE  tweet_date < '2016-01-01'
   ;
 
 -- 株価データと結合
@@ -175,10 +176,7 @@ CREATE TABLE Company(
   company_name  VARCHAR(20)
 );COPY Company FROM 'C:\ProgramData\SampleData\Company.csv' WITH csv HEADER;
 
-SELECT *
-FROM Company
-;
-
+-- 会社名を名称に変更
 DROP TABLE IF EXISTS Tweetdata01_5;
 CREATE TABLE Tweetdata01_5 AS
   SELECT T2.company_name
@@ -218,8 +216,8 @@ CREATE TABLE Tweetdata02 AS
   ;
   
 -- 帳票2作成
-DROP TABLE IF EXISTS Tweetdata02 ;
-CREATE TABLE Tweetdata02 AS
+DROP TABLE IF EXISTS Tweetdata03 ;
+CREATE TABLE Tweetdata03 AS
   SELECT ticker_symbol,
           Company_variation,
         SUM(tweet_num)              AS tweet_count,
@@ -240,3 +238,11 @@ CREATE TABLE Tweetdata02 AS
   ;
   
 commit;
+
+SELECT *
+FROM Tweetdata02
+limit 1000;
+
+SELECT *
+FROM Tweetdata03
+limit 1000;
