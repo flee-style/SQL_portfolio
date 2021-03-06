@@ -98,25 +98,6 @@ CREATE TABLE Tweetdata01_1 AS
                 ELSE 1 END) <> 1
   ;
   
--- 帳票用データのためのツイートデータ作成
-DROP TABLE IF EXISTS Tweetdata01_2;
-CREATE TABLE Tweetdata01_2 AS
-  SELECT ticker_symbol
-         , tweet_date
-         , 
-         , COUNT(tweet_id)       AS tweet_num
-         , SUM(count_bodytext)   AS tweet_text_sum
-         , SUM(comment_num::int) AS tweet_comment_sum
-         , MAX(comment_num::int) AS tweet_comment_max
-         , SUM(retweet_num::int) AS tweet_retweet_sum
-         , MAX(retweet_num::int) AS tweet_retweet_max
-         , SUM(like_num::int)    AS tweet_like_sum
-         , MAX(like_num::int)    AS tweet_like_max
-  FROM Tweetdata01_1
-  WHERE tweet_date <= '2020-05-29'
-  GROUP BY ticker_symbol, tweet_date
-  ;
-  
 -- CompanyValues Data
 --   2010-06-01からデータが存在している。
 DROP TABLE IF EXISTS Company_Values;
@@ -140,35 +121,15 @@ CREATE TABLE Company_Values1 AS
   WHERE '2015-01-01' <= tweet_date AND tweet_date <= '2021-01-01'
   ;
 
--- 会社の株価データ
-DROP TABLE IF EXISTS Company_Values2;
-CREATE TABLE Company_Values2 AS  
-  SELECT *
-  FROM   Company_Values1
-  ;
-
 -- 株価データと結合
-DROP TABLE IF EXISTS Tweetdata01_3;
-CREATE TABLE Tweetdata01_3 AS
+DROP TABLE IF EXISTS Tweetdata01_2;
+CREATE TABLE Tweetdata01_2 AS
   SELECT T1.*
         ,T2.close_value AS Company_value
-  FROM Tweetdata01_2 AS T1 FULL OUTER JOIN Company_Values2 AS T2
+  FROM Tweetdata01_1 AS T1 FULL OUTER JOIN Company_Values1 AS T2
     ON T1.ticker_symbol = T2.ticker_symbol AND T1.tweet_date = T2.tweet_date 
 ;
 
--- 日付にて終値の変化を作成
-DROP TABLE IF EXISTS Tweetdata01_4;
-CREATE TABLE Tweetdata01_4 AS
-  SELECT T1.*
-        ,CASE WHEN T1.company_value = T2.company_value THEN '→'
-              WHEN T1.company_value < T2.company_value THEN '↑'
-              WHEN T1.company_value > T2.company_value THEN '↓' 
-              ELSE NULL END AS Company_variation
-  FROM Tweetdata01_3 T1, Tweetdata01_3 T2
-  WHERE T1.ticker_symbol = T2.ticker_symbol
-    AND T1.tweet_date + 1 = T2.tweet_date
-    ;
-    
  -- Company Data
 DROP TABLE IF EXISTS Company;
 CREATE TABLE Company(
@@ -177,28 +138,90 @@ CREATE TABLE Company(
 );COPY Company FROM 'C:\ProgramData\SampleData\Company.csv' WITH csv HEADER;
 
 -- 会社名を名称に変更
-DROP TABLE IF EXISTS Tweetdata01_5;
-CREATE TABLE Tweetdata01_5 AS
-  SELECT T2.company_name
-        ,tweet_date
-        ,tweet_num
-        ,tweet_text_sum
-        ,tweet_comment_sum
-        ,tweet_comment_max
-        ,tweet_retweet_sum
-        ,tweet_retweet_max
-        ,tweet_like_sum
-        ,tweet_like_max
-        ,company_value
-        ,company_variation
-  FROM Tweetdata01_4 T1
+DROP TABLE IF EXISTS Tweetdata01_3;
+CREATE TABLE Tweetdata01_3 AS
+  SELECT tweet_id
+         ,T2.company_name
+         ,T1.ticker_symbol
+         ,tweet_date
+         ,count_bodytext
+         ,comment_num
+         ,retweet_num
+         ,like_num  
+         ,company_value
+  FROM Tweetdata01_2 T1
     INNER JOIN Company T2 ON T1.ticker_symbol = T2.ticker_symbol 
 ;
+
+-- 帳票用データ1
+DROP TABLE IF EXISTS Tweetdata01_4;
+CREATE TABLE Tweetdata01_4 AS
+  SELECT company_name
+        ,ticker_symbol
+         , tweet_date
+         , date_part('year', tweet_date) 
+            || '-' || CASE WHEN '1' <= date_part('month', tweet_date) AND date_part('month', tweet_date) <= '9'
+                      THEN '0' || date_part('month', tweet_date) 
+                      ELSE   date_part('month', tweet_date)::varchar END as tweet_ymdate
+         , COUNT(tweet_id)       AS tweet_num
+         , SUM(count_bodytext)   AS tweet_text_sum
+         , SUM(comment_num::int) AS tweet_comment_sum
+         , MAX(comment_num::int) AS tweet_comment_max
+         , SUM(retweet_num::int) AS tweet_retweet_sum
+         , MAX(retweet_num::int) AS tweet_retweet_max
+         , SUM(like_num::int)    AS tweet_like_sum
+         , MAX(like_num::int)    AS tweet_like_max
+         , Company_value
+  FROM Tweetdata01_3
+  WHERE tweet_date <= '2020-05-29'
+  GROUP BY company_name,ticker_symbol, tweet_date , Company_value
+  ;
+
+-- 日付にて終値の変化を作成
+DROP TABLE IF EXISTS Tweetdata01_5;
+CREATE TABLE Tweetdata01_5 AS
+  SELECT T1.*
+        ,CASE WHEN T1.company_value = T2.company_value THEN '→'
+              WHEN T1.company_value < T2.company_value THEN '↑'
+              WHEN T1.company_value > T2.company_value THEN '↓' 
+              ELSE NULL END AS Company_variation
+  FROM Tweetdata01_4 T1, Tweetdata01_4 T2
+  WHERE T1.ticker_symbol = T2.ticker_symbol
+    AND T1.tweet_date + 1 = T2.tweet_date
+    ;
+
+-- 帳票用データ2
+DROP TABLE IF EXISTS Tweetdata01_6;
+CREATE TABLE Tweetdata01_6 AS
+  SELECT company_name
+         , tweet_ymdate
+         , SUM(tweet_num )       AS tweet_num
+         , SUM(tweet_text_sum)   AS tweet_text_sum
+         , SUM(tweet_comment_sum) AS tweet_comment_sum
+         , MAX(tweet_comment_max) AS tweet_comment_max
+         , SUM(tweet_retweet_sum) AS tweet_retweet_sum
+         , MAX(tweet_retweet_max) AS tweet_retweet_max
+         , SUM(tweet_like_sum)    AS tweet_like_sum
+         , MAX(tweet_like_max)    AS tweet_like_max
+         , AVG(Company_value)     AS Company_value
+  FROM Tweetdata01_5
+  WHERE tweet_date <= '2020-05-29'
+  GROUP BY company_name, tweet_ymdate , Company_value
+  ORDER BY 1,2
+  ;
+
+-- SELECT *
+-- FROM
+-- (SELECT company_name, tweet_ymdate, COUNT(tweet_ymdate) AS count_
+-- FROM   Tweetdata01_6
+-- GROUP BY company_name, tweet_ymdate) AS T1
+-- WHERE 1 < count_
+-- ;
 
 -- 帳票1作成
 DROP TABLE IF EXISTS Tweetdata02 ;
 CREATE TABLE Tweetdata02 AS
-  SELECT ticker_symbol,
+  SELECT company_name,
         SUM(tweet_num)              AS tweet_count,
         SUM(tweet_text_sum)         AS text_sum,
         SUM(tweet_text_sum) / SUM(tweet_num)      AS text_mean,
@@ -211,14 +234,14 @@ CREATE TABLE Tweetdata02 AS
         SUM(tweet_like_sum)         AS like_count,
         SUM(tweet_like_sum) / SUM(tweet_num)    AS like_mean,
         MAX(tweet_like_max)         AS like_max
-  FROM Tweetdata01_4
-  GROUP BY ticker_symbol
+  FROM Tweetdata01_6
+  GROUP BY company_name
   ;
   
 -- 帳票2作成
 DROP TABLE IF EXISTS Tweetdata03 ;
 CREATE TABLE Tweetdata03 AS
-  SELECT ticker_symbol,
+  SELECT company_name,
           Company_variation,
         SUM(tweet_num)              AS tweet_count,
         SUM(tweet_text_sum)         AS text_sum,
@@ -232,17 +255,9 @@ CREATE TABLE Tweetdata03 AS
         SUM(tweet_like_sum)         AS like_count,
         SUM(tweet_like_sum) / SUM(tweet_num)    AS like_mean,
         MAX(tweet_like_max)         AS like_max
-  FROM Tweetdata01_4
-  GROUP BY ticker_symbol,Company_variation
+  FROM Tweetdata01_5
+  GROUP BY company_name,Company_variation
   ORDER BY 1,2
   ;
   
 commit;
-
-SELECT *
-FROM Tweetdata02
-limit 1000;
-
-SELECT *
-FROM Tweetdata03
-limit 1000;
