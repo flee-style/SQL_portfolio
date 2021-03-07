@@ -111,24 +111,51 @@ CREATE TABLE Company_Values(
     low_value REAL
 );COPY Company_Values FROM 'C:\ProgramData\SampleData\CompanyValues.csv' WITH csv HEADER; 
 
--- 会社の株価を2015年から2020年に絞る
+-- 会社の株価を2015年から2020年に絞る。2020-01-01の株価データがないため前日の株価を入れる。
 DROP TABLE IF EXISTS Company_Values1;
 CREATE TABLE Company_Values1 AS  
   SELECT CASE WHEN ticker_symbol = 'GOOG' THEN 'GOOGL' ELSE ticker_symbol END AS ticker_symbol
         ,tweet_date::date
         ,close_value
   FROM  Company_Values
-  WHERE '2015-01-01' <= tweet_date AND tweet_date <= '2021-01-01'
+--   WHERE '2015-01-01' <= tweet_date AND tweet_date <= '2021-01-01'
   ;
 
 -- 株価データと結合
 DROP TABLE IF EXISTS Tweetdata01_2;
 CREATE TABLE Tweetdata01_2 AS
-  SELECT T1.*
-        ,T2.close_value AS Company_value
+  SELECT DISTINCT
+            T1.tweet_id
+         ,  T1.ticker_symbol
+         ,  t1.tweet_date
+         ,  count_bodytext
+         ,  comment_num
+         ,  retweet_num
+         ,  like_num 
+         ,  MIN(T2.close_value) OVER(PARTITION BY T1.tweet_id , T1.ticker_symbol , T2.tweet_date)  AS Company_value
   FROM Tweetdata01_1 AS T1 FULL OUTER JOIN Company_Values1 AS T2
     ON T1.ticker_symbol = T2.ticker_symbol AND T1.tweet_date = T2.tweet_date 
 ;
+
+-- 2020-01-01の日付の株価は前日の株価を設定する
+DROP TABLE IF EXISTS Tweetdata01_2_beforedate;
+CREATE TABLE Tweetdata01_2_beforedate AS
+  SELECT  tweet_id
+        , ticker_symbol
+        , tweet_date
+        , count_bodytext
+        , comment_num
+        , retweet_num
+        , like_num
+        , CASE WHEN tweet_date = '2020-01-01' THEN (SELECT DISTINCT company_value
+                                                      FROM Tweetdata01_2 T2
+                                                     WHERE T2.ticker_symbol = T1.ticker_symbol AND tweet_date = '2019-12-31') ELSE company_value END AS Company_value
+  FROM  Tweetdata01_2 T1
+;
+-- 
+-- SELECT *
+-- FROM Tweetdata01_2_beforedate
+-- WHERE tweet_date = '2020-01-01'
 
  -- Company Data
 DROP TABLE IF EXISTS Company;
@@ -149,7 +176,7 @@ CREATE TABLE Tweetdata01_3 AS
          ,retweet_num
          ,like_num  
          ,company_value
-  FROM Tweetdata01_2 T1
+  FROM Tweetdata01_2_beforedate T1
     INNER JOIN Company T2 ON T1.ticker_symbol = T2.ticker_symbol 
 ;
 
@@ -177,14 +204,27 @@ CREATE TABLE Tweetdata01_4 AS
   GROUP BY company_name,ticker_symbol, tweet_date , Company_value
   ;
 
+ 
 -- 日付にて終値の変化を作成
 DROP TABLE IF EXISTS Tweetdata01_5;
 CREATE TABLE Tweetdata01_5 AS
-  SELECT T1.*
-        ,CASE WHEN T1.company_value = T2.company_value THEN '→'
-              WHEN T1.company_value < T2.company_value THEN '↑'
-              WHEN T1.company_value > T2.company_value THEN '↓' 
-              ELSE NULL END AS Company_variation
+  SELECT    T1.company_name
+        ,   T1.ticker_symbol
+        ,   T1.tweet_date
+        ,   T1.tweet_ymdate
+        ,   T1.tweet_num
+        ,   T1.tweet_text_sum
+        ,   T1.tweet_comment_sum
+        ,   T1.tweet_comment_max
+        ,   T1.tweet_retweet_sum
+        ,   T1.tweet_retweet_max
+        ,   T1.tweet_like_sum
+        ,   T1.tweet_like_max
+        ,   T1.Company_value
+        ,  CASE WHEN T1.company_value = T2.company_value THEN '→'
+                WHEN T1.company_value < T2.company_value THEN '↑'
+                WHEN T1.company_value > T2.company_value THEN '↓' 
+                ELSE NULL END AS Company_variation
   FROM Tweetdata01_4 T1, Tweetdata01_4 T2
   WHERE T1.ticker_symbol = T2.ticker_symbol
     AND T1.tweet_date + 1 = T2.tweet_date
@@ -206,7 +246,7 @@ CREATE TABLE Tweetdata01_6 AS
          , AVG(Company_value)     AS Company_value
   FROM Tweetdata01_5
   WHERE tweet_date <= '2020-05-29'
-  GROUP BY company_name, tweet_ymdate , Company_value
+  GROUP BY company_name, tweet_ymdate
   ORDER BY 1,2
   ;
 
